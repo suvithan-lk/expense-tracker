@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: financial_advisor
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./Backend/FinancialAdvisor.Api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=financial_advisor;Username=postgres;Password=postgres
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: FinancialAdvisor
+      Jwt__Audience: FinancialAdvisorClient
+      Jwt__ExpiryMinutes: 60
+      Jwt__RefreshTokenExpiryDays: 30
+      Cors__AllowedOrigins__0: http://localhost:3000
+    ports:
+      - "5029:8080"
+
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5029
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:5029
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres-data:
